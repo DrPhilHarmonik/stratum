@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stratum"
+version = "0.1.0"
+description = "Terminal-first world simulation scaffold."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Stratum" }]
+dependencies = []
+
+[project.scripts]
+stratum = "stratum.main:run"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["stratum*"]
