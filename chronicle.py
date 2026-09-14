@@ -9,6 +9,7 @@ and fall on the terrain that shaped them.
     python3 -m stratum.chronicle                       # from /home/god/projects
     python3 chronicle.py --years 400 --every 100        # from inside stratum/
     python3 chronicle.py --seed 7 --cols 110 --rows 34
+    python3 chronicle.py --blocks                       # colour, via ../spectator
 
 Terrain:  ' ' deep sea   ~ sea   . coast   , plains   ; savanna   : desert
           + river   # forest   ^ hills   M mountains   A snow
@@ -68,6 +69,18 @@ def settlement_glyph(s):
 _GLYPH_RANK = {'x': 0, 'o': 1, 'O': 2, '@': 3, '%': 4, '&': 5}
 
 
+def event_kind(msg):
+    """Sort a civ event into found / war / drought, or None for everything else."""
+    low = msg.lower()
+    if 'found' in low or 'establish' in low or 'settlers' in low:
+        return 'found'
+    if 'war' in low or 'sack' in low or 'conquer' in low or 'raid' in low or 'clash' in low:
+        return 'war'
+    if 'drought' in low:
+        return 'drought'
+    return None
+
+
 def ascii_frame(world, civ, cols, rows):
     """Downsample the world to an `rows` x `cols` relief map with settlements."""
     elev = world.elev
@@ -95,6 +108,38 @@ def ascii_frame(world, civ, cols, rows):
             grid[r][c] = g
 
     return ["".join(row) for row in grid]
+
+
+# -- colour spectator mode (--blocks) --------------------------------------------
+# The same frames and history as the ASCII chronicle, drawn in half blocks through
+# the shared spectator package. Imported only when asked for, so the plain ASCII
+# chronicle needs nothing beyond numpy.
+
+TERRAIN_COLORS = {
+    ' ': (8, 24, 64),    '~': (24, 64, 128),  '.': (196, 180, 128), ':': (214, 184, 112),
+    ';': (164, 152, 84), ',': (112, 152, 72), '#': (40, 100, 52),   '+': (64, 124, 204),
+    '^': (124, 108, 88), 'M': (152, 142, 136), 'A': (240, 240, 246),
+}
+TOWN_COLORS = {'x': (96, 84, 84), 'o': (255, 214, 130), 'O': (255, 184, 64),
+               '@': (255, 144, 40), '%': (255, 92, 32), '&': (255, 40, 40)}
+EVENT_GLYPHS = {'war': 'w', 'drought': 'd', 'found': 'f', None: '.'}
+
+
+def block_frame(world, civ, cols, rows):
+    """The relief map in colour: `rows` text rows carry twice as many pixel rows."""
+    import spectator
+
+    prow = rows * 2
+    elev = spectator.sample_nearest(world.elev, cols, prow)
+    moist = spectator.sample_nearest(world.moisture, cols, prow)
+    river = spectator.sample_nearest(world.rivers, cols, prow)
+    pixels = [[TERRAIN_COLORS[ascii_terrain(float(e), float(m), bool(rv))]
+               for e, m, rv in zip(erow, mrow, rrow)]
+              for erow, mrow, rrow in zip(elev, moist, river)]
+    H, W = world.elev.shape
+    towns = sorted(civ.settlements, key=lambda s: _GLYPH_RANK[settlement_glyph(s)])
+    points = [(s.x, s.y, TOWN_COLORS[settlement_glyph(s)]) for s in towns]
+    return spectator.frame(spectator.paint_points(pixels, points, W, H))
 
 
 def _best_land_sites(world, n, spacing=90):
@@ -125,7 +170,7 @@ def stats_line(world, civ):
             f"| ruins {ruins:>2} | largest: {lead}")
 
 
-def run(years, every, cols, rows, seeds):
+def run(years, every, cols, rows, seeds, blocks=False):
     print("=" * (cols + 2))
     print("  STRATUM CHRONICLE  -- generating a world...")
     print("=" * (cols + 2))
@@ -137,15 +182,26 @@ def run(years, every, cols, rows, seeds):
     geo = GeologyLayer()
     civ = CivLayer()
 
+    record = None
+    if blocks:
+        import spectator
+        record = spectator.Chronicle()
+
+    def show():
+        print()
+        print(stats_line(world, civ))
+        if blocks:
+            print(block_frame(world, civ, cols, rows), end="")
+        else:
+            for line in ascii_frame(world, civ, cols, rows):
+                print("  " + line)
+
     # Seed a couple of founding settlements on good land so history starts early;
     # the simulation spawns the rest organically from there.
     for (x, y) in _best_land_sites(world, 2):
         civ.found(world, x, y, parent='dawn')
 
-    print()
-    print(stats_line(world, civ))
-    for line in ascii_frame(world, civ, cols, rows):
-        print("  " + line)
+    show()
 
     founded = wars = droughts = 0
     peak_pop = 0
@@ -157,24 +213,27 @@ def run(years, every, cols, rows, seeds):
             continue
         geo.step_year(world)
         for msg in civ.step_year(world):
-            low = msg.lower()
-            if 'found' in low or 'establish' in low or 'settlers' in low:
+            kind = event_kind(msg)
+            if kind == 'found':
                 founded += 1
-            elif 'war' in low or 'sack' in low or 'conquer' in low or 'raid' in low or 'clash' in low:
+            elif kind == 'war':
                 wars += 1
-            elif 'drought' in low:
+            elif kind == 'drought':
                 droughts += 1
+            if record is not None:
+                record.event(world.year, msg, kind)
             print("   ", msg)
 
-        pop = int(sum(s.pop for s in civ.settlements if s.state != 'abandoned'))
+        active = [s for s in civ.settlements if s.state != 'abandoned']
+        pop = int(sum(s.pop for s in active))
         if pop > peak_pop:
             peak_pop, peak_year = pop, world.year
+        if record is not None:
+            record.metric(world.year, 'pop', pop)
+            record.metric(world.year, 'towns', len(active))
 
         if world.year % every == 0:
-            print()
-            print(stats_line(world, civ))
-            for line in ascii_frame(world, civ, cols, rows):
-                print("  " + line)
+            show()
 
     # Closing chronicle.
     active = sorted((s for s in civ.settlements if s.state != 'abandoned'),
@@ -191,6 +250,14 @@ def run(years, every, cols, rows, seeds):
             print(f"    {s.name:<14} {s.size_label():<10} pop {s.ipop:>5}  ({born})")
     else:
         print("  The world emptied -- no settlement outlived the centuries.")
+    if record is not None:
+        width = max(10, cols - 10)
+        t0, t1 = record.span()
+        print()
+        print(f"  history  {spectator.timeline(record.events, t0, t1, width, EVENT_GLYPHS)}")
+        print(f"  pop      {spectator.sparkline(record.series('pop'), width)}")
+        print(f"  towns    {spectator.sparkline(record.series('towns'), width)}")
+        print(f"           years {t0:g} to {t1:g}.   f founded  w war  d drought  . other")
     print("=" * (cols + 2))
 
 
@@ -201,12 +268,15 @@ def main():
     ap.add_argument("--cols", type=int, default=100, help="ASCII map width")
     ap.add_argument("--rows", type=int, default=30, help="ASCII map height")
     ap.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
+    ap.add_argument("--blocks", action="store_true",
+                    help="draw maps in colour half blocks and end with history strips "
+                         "(needs the spectator package)")
     args = ap.parse_args()
 
     seed = args.seed if args.seed is not None else random.randint(0, 2**31 - 1)
     random.seed(seed)
     np.random.seed(seed)
-    run(args.years, args.every, args.cols, args.rows, seed)
+    run(args.years, args.every, args.cols, args.rows, seed, blocks=args.blocks)
 
 
 if __name__ == "__main__":
