@@ -23,8 +23,14 @@ Controls
 
 import argparse
 import curses
+import os
 import random
+import sys
 import time
+
+if not __package__:  # run as a script: bootstrap the parent package
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    __package__ = 'stratum'
 
 from .world  import WorldMap, WORLD_W, WORLD_H
 from .geo    import GeologyLayer

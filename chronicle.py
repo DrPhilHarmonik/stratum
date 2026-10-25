@@ -21,18 +21,18 @@ import random
 
 import numpy as np
 
-try:
-    from .world import (WorldMap, WORLD_W, WORLD_H,
-                        SEA_DEEP, COAST, PLAINS, FOREST, HILLS, MOUNTAIN, SNOW,
-                        M_ARID, M_DRY)
-    from .geo import GeologyLayer
-    from .civ import CivLayer
-except ImportError:  # running from inside the package directory
-    from world import (WorldMap, WORLD_W, WORLD_H,
-                       SEA_DEEP, COAST, PLAINS, FOREST, HILLS, MOUNTAIN, SNOW,
-                       M_ARID, M_DRY)
-    from geo import GeologyLayer
-    from civ import CivLayer
+import os
+import sys
+
+if not __package__:  # run as a script: bootstrap the parent package
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    __package__ = 'stratum'
+
+from .world import (WorldMap, WORLD_W, WORLD_H,
+                    SEA_DEEP, COAST, PLAINS, FOREST, HILLS, MOUNTAIN, SNOW,
+                    M_ARID, M_DRY)
+from .geo import GeologyLayer
+from .civ import CivLayer
 
 
 def ascii_terrain(elev, moist, river):
