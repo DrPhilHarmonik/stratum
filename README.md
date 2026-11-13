@@ -23,6 +23,8 @@ python3 -m stratum --load ~/.local/share/stratum/example.save
 Saves are written to `~/.local/share/stratum/` by default. Set
 `STRATUM_SAVE_DIR` to override that location.
 
+Run the tests from the repo with `python -m pytest` (needs pytest and numpy).
+
 If you are landing here fresh, treat the current build as a thin vertical slice
 that establishes package structure, basic rendering, and command-line behavior
 before the real simulation loop arrives.

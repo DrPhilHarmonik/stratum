@@ -15,9 +15,16 @@ from .civ   import CivLayer, Settlement, _used_names
 SAVE_DIR = Path.home() / '.local' / 'share' / 'stratum'
 
 
+def _save_dir() -> Path:
+    """STRATUM_SAVE_DIR if set, else SAVE_DIR."""
+    env = os.environ.get('STRATUM_SAVE_DIR')
+    return Path(env).expanduser() if env else SAVE_DIR
+
+
 def _save_path(seed: int, year: int) -> Path:
-    SAVE_DIR.mkdir(parents=True, exist_ok=True)
-    return SAVE_DIR / f'seed{seed:05d}_year{year:05d}.stratum'
+    save_dir = _save_dir()
+    save_dir.mkdir(parents=True, exist_ok=True)
+    return save_dir / f'seed{seed:05d}_year{year:05d}.stratum'
 
 
 def save(world: WorldMap, geo: GeologyLayer, civ: CivLayer) -> Path:
@@ -33,6 +40,9 @@ def save(world: WorldMap, geo: GeologyLayer, civ: CivLayer) -> Path:
             'age':      s.age,
             'state':    s.state,
             'roads_to': [r.name for r in s.roads_to],
+            'founded_year': s.founded_year,
+            'founded_by':   s.founded_by,
+            'farm_radius':  s.farm_radius,
         }
 
     payload = {
@@ -88,7 +98,12 @@ def load(path: str | Path) -> tuple[WorldMap, GeologyLayer, CivLayer]:
         s = Settlement(
             name=sd['name'], x=sd['x'], y=sd['y'],
             pop=sd['pop'],   age=sd['age'], state=sd['state'],
+            # Saves from before these were stored fall back to the defaults
+            founded_year=sd.get('founded_year', 0),
+            founded_by=sd.get('founded_by', ''),
+            farm_radius=sd.get('farm_radius', 4),
         )
+        s._size_label = s.size_label()
         _used_names.add(s.name)
         civ.settlements.append(s)
         name_map[s.name] = s
@@ -100,7 +115,8 @@ def load(path: str | Path) -> tuple[WorldMap, GeologyLayer, CivLayer]:
 
 def latest_save() -> Path | None:
     """Return the most recently modified save file, or None."""
-    if not SAVE_DIR.exists():
+    save_dir = _save_dir()
+    if not save_dir.exists():
         return None
-    saves = sorted(SAVE_DIR.glob('*.stratum'), key=lambda p: p.stat().st_mtime)
+    saves = sorted(save_dir.glob('*.stratum'), key=lambda p: p.stat().st_mtime)
     return saves[-1] if saves else None

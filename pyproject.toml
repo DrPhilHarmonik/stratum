@@ -20,3 +20,6 @@ package-dir = {"" = "."}
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["stratum*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

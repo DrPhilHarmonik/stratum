@@ -73,10 +73,16 @@ class GeologyLayer:
     def _cool_lava(self, world: WorldMap):
         # Lava cells become rock after 3 years; clear overlay then
         current_year = world.year
+        h, w = world.height, world.width
+        r = VOLCANO_RADIUS
         fresh = []
         for (x, y, yr) in self.eruptions:
             if current_year - yr >= 3:
-                world.overlay[y, x] = 0  # revert to normal render
+                # Clear the whole flow, but only cells still marked as lava
+                y0, y1 = max(0, y - r), min(h, y + r + 1)
+                x0, x1 = max(0, x - r), min(w, x + r + 1)
+                sub = world.overlay[y0:y1, x0:x1]
+                sub[sub == OVERLAY_LAVA] = 0  # revert to normal render
             else:
                 fresh.append((x, y, yr))
         self.eruptions = fresh
