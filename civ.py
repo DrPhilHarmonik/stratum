@@ -11,7 +11,7 @@ import numpy as np
 from .world import (WorldMap, COAST, PLAINS, FOREST, HILLS, MOUNTAIN,
                     SEA_SHALLOW, M_ARID, M_DRY,
                     OVERLAY_ROAD, OVERLAY_FARM, OVERLAY_RUINS,
-                    OVERLAY_BURN, OVERLAY_BRIDGE)
+                    OVERLAY_BURN, OVERLAY_BRIDGE, OVERLAY_NONE)
 
 
 # ── Name generation ───────────────────────────────────────────────
